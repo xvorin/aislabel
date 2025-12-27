@@ -1,0 +1,57 @@
+{
+    "projects": [
+        "D:/workspace/aislabel/test/images"
+    ],
+    "focus": 0,
+    "schemas": [
+        {
+            "name": "足球",
+            "categories": [
+                {
+                    "type": 0,
+                    "export_id": 0,
+                    "label": "Football",
+                    "color": "#000000",
+                    "remark": ""
+                },
+                {
+                    "type": 1,
+                    "export_id": 1,
+                    "label": "Person",
+                    "color": "#FFFFFF",
+                    "remark": ""
+                }
+            ],
+            "version": "1.0",
+            "description": ""
+        },
+        {
+            "name": "篮球",
+            "categories": [
+                {
+                    "type": 0,
+                    "export_id": 0,
+                    "label": "Basketball",
+                    "color": "#000000",
+                    "remark": ""
+                },
+                {
+                    "type": 1,
+                    "export_id": 1,
+                    "label": "EmptyNet",
+                    "color": "#FFFFFF",
+                    "remark": ""
+                },
+                {
+                    "type": 2,
+                    "export_id": 2,
+                    "label": "BasketballInNet",
+                    "color": "#EEEEEE",
+                    "remark": ""
+                }
+            ],
+            "version": "1.0",
+            "description": ""
+        }
+    ]
+}

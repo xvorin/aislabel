@@ -1,0 +1,5 @@
+pyinstaller --onefile --noconsole --icon=./res/aislabel.ico main.py
+protoc -I=. --python_out=. lane_line.proto
+
+# from qtawesome.icon_browser import run 然后 run()
+# CertUtil -hashfile "D:\workspace\aislabel\test\images\20251206220235649429_1debbe62d4d2733b6d6e3c1c9dd09552.jpg" MD5

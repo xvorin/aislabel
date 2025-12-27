@@ -1,0 +1,17 @@
+opencv-python
+pyqt6
+pyqt6-tools
+paho-mqtt
+pyyaml
+pyproj
+Pillow
+pyinstaller
+minio
+protobuf
+qtawesome
+requests
+pydantic
+sqlalchemy
+python-magic-bin # python-magic
+
+# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/
