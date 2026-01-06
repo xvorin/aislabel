@@ -19,11 +19,12 @@ class Anchor(QGraphicsRectItem):
         self.cursor = cursor
 
         # 设置位置和大小
-        anchor_size = 6 / 1280 * Global["image_size"][0]
+        # anchor_size = 6 / 1280 * Global["image_size"][0] / Global["scale"]
+        anchor_size = 5 / Global["scale"]
         self.setRect(anchor_size * -1, anchor_size * -1, anchor_size * 2, anchor_size * 2)
         # 设置样式
         self.setBrush(QBrush(QColor(255, 255, 0)))
-        self.setPen(QPen(QColor(0, 0, 0), 1))
+        self.setPen(QPen(Qt.PenStyle.NoPen))
 
         # 启用交互
         self.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable, True)

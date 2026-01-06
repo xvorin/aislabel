@@ -18,57 +18,58 @@ class LabelingDataItem:
         self.project = project
         self.create = None  # 创建时间
         self.modify = None  # 修改时间
-        self.labels = None  # 标注结果
+        self.group = None  # 标注结果
         self.operations = None  # 用于undo/redo
 
-        self._load_labels()
+        self._load_label_group()
 
     def image(self):
         return self.project.image_path(self.filekey)
 
-    def update_labels(self, labels: LabelGroup):
-        self.labels = labels
-        self._save_labels()
+    def update_label_group(self, group: LabelGroup):
+        group.ignored = self.group.ignored
+        self.group = group
+        self._save_label_group()
         self.modify = datetime.datetime.now()
 
-    def remove_labels(self):
+    def remove_label_group(self):
         file = self.project.label_path(self.filekey)
         file.unlink(missing_ok=True)
-        self.labels = None
+        self.group = None
         self.modify = None
 
     def ignore(self, ignored: bool):
-        if self.labels is None:
+        if self.group is None:
             return
-        self.labels.ignored = ignored
-        self._save_labels()
+        self.group.ignored = ignored
+        self._save_label_group()
 
     def ignored(self) -> bool:
-        return False if self.labels is None else self.labels.ignored
+        return False if self.group is None else self.group.ignored
 
     def labeled(self) -> bool:
-        return self.labels is not None
+        return self.group is not None
 
-    def _save_labels(self):
-        if self.labels is None:
+    def _save_label_group(self):
+        if self.group is None:
             return
         file = self.project.label_path(self.filekey)
-        with open(str(file), 'w') as f:
-            f.write(self.labels.model_dump_json(indent=4))
+        with open(str(file), 'w', encoding='utf-8') as f:
+            f.write(self.group.model_dump_json(indent=4))
 
-    def _load_labels(self):
+    def _load_label_group(self):
         self.create = self.project.storage.get_create_time(self.filekey)
 
         file = self.project.label_path(self.filekey)
         if file.exists() is False:
-            self.labels = None
+            self.group = None
             return
 
         timestamp = file.stat().st_mtime
         self.modify = datetime.datetime.fromtimestamp(timestamp)
 
-        with open(file, 'r') as f:
-            self.labels = LabelGroup.model_validate_json(f.read())
+        with open(file, 'r', encoding='utf-8') as f:
+            self.group = LabelGroup.model_validate_json(f.read())
 
 
 class TimeFilterMode(Enum):
@@ -184,7 +185,7 @@ class Provider(QObject):
             self.model.setItem(row, col, item)
             col += 1
 
-            item = QStandardItem(str(len(value.labels.labels)) if value.labels else '0')
+            item = QStandardItem(str(len(value.group.labels)) if value.group else '0')
             item.setEditable(False)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.model.setItem(row, col, item)

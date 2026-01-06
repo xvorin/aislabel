@@ -27,6 +27,7 @@ class Configuration:
         self.config = {}
 
         if self.file is None:
+            self.config = self.default
             return
 
         # 确保配置文件存在
@@ -102,4 +103,4 @@ class Configuration:
 
 Config = Configuration(WorkRoot + '/.aislabel', DataModel.AisLabelConfig().model_dump())
 
-Global = Configuration()
+Global = Configuration(filepath=None, default={'scale': 1})

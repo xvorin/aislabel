@@ -5,51 +5,66 @@ from canvas.graphics.anchor import Anchor
 from canvas.graphics.factory import GraphicsFactory
 
 from PyQt6.QtCore import QTimer, QObject, pyqtSignal
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem
+from PyQt6.QtWidgets import QGraphicsPixmapItem
 
 
 class Operations(QObject):
     dirty_state_changed = pyqtSignal(bool)
 
-    def __init__(self, scene: QGraphicsScene, parent=None):
+    def __init__(self, canvas, parent=None):
         super().__init__(parent)
-        self.scene = scene
+        self.canvas = canvas
+        self.scene = canvas.scene
         self.history = []
         self.index = -1
         self.dirty = False
 
-    def record(self, labels: LabelGroup):
+    def record(self, group: LabelGroup):
         self.index += 1
-        self.history.insert(self.index, labels.model_copy(deep=True))
+        self.history.insert(self.index, group.model_copy(deep=True))
         self.history = self.history[: self.index + 1]
         self.set_dirty(True)
+        self.canvas.group.set_label_group(group)  # 通知table数据变化
 
-    def labels(self, index: int):
+    def label_group(self, index: int):
         if index < 0 or index >= len(self.history):
             return None
         return self.history[index].model_copy(deep=True)
 
+    def current_label_group(self):
+        return self.label_group(self.index)
+
+    def refresh(self):
+        group = self.current_label_group()
+        self.show_label_group(group)
+        self.canvas.group.set_label_group(group)  # 通知table数据变化
+
     def undo(self):
-        labels = self.labels(self.index - 1)
-        if labels is not None:
-            self.show_labels(labels)
+        group = self.label_group(self.index - 1)
+        if group is not None:
+            self.show_label_group(group)
             self.index = self.index - 1
             self.set_dirty(True)
+            self.canvas.group.set_label_group(group)  # 通知table数据变化
 
     def redo(self):
-        labels = self.labels(self.index + 1)
-        if labels is not None:
-            self.show_labels(labels)
+        group = self.label_group(self.index + 1)
+        if group is not None:
+            self.show_label_group(group)
             self.index = self.index + 1
             self.set_dirty(True)
+            self.canvas.group.set_label_group(group)  # 通知table数据变化
 
-    def show_labels(self, labels: LabelGroup):
+    def show_label_group(self, group: LabelGroup):
         self._clear_items()
-        if labels is not None:
-            for label in labels.labels:
+        if group is not None:
+            for label in group.labels:
                 graphics = GraphicsFactory.from_label(label)
                 if graphics:
                     self.scene.addItem(graphics)
+                    graphics.setVisible(label.visible)
+                    label.type, color = self.canvas.get_color_by_type(label.type)
+                    graphics.set_type(label.type, color)
         self.scene.update()
 
     def set_dirty(self, dirty: bool = None):

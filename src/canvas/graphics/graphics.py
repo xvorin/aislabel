@@ -18,9 +18,10 @@ class GraphicsBase:
         self.anchor_visible = False
         self.anchor_moving_index = -1
 
-        logger.debug(f'image size:{Global["image_size"]}')
-        self.thickness_normal = 2 / 1280 * Global["image_size"][0]
-        self.thickness_select = 5 / 1280 * Global["image_size"][0]
+        # self.thickness_normal = 2 / 1280 * Global["image_size"][0] / Global["scale"]
+        # self.thickness_select = 5 / 1280 * Global["image_size"][0] / Global["scale"]
+        self.thickness_normal = 2 / Global["scale"]
+        self.thickness_select = 3.6 / Global["scale"]
         self.brush_alpha = 0.2
 
         self.could_redit = True
@@ -58,7 +59,7 @@ class GraphicsBase:
 
     def on_ancher_move_begin(self, index, pos):
         self.anchor_moving_index = index
-        logger.info(f'items on scene {len(self.scene().items())}')
+        # logger.info(f'items on scene {len(self.scene().items())}')
 
     def on_ancher_move_end(self, index, pos):
         self.anchor_moving_index = -1
@@ -184,10 +185,18 @@ class Polyline(PolyGraphicsBase):
     def __init__(self, id):
         super().__init__(id)
         self._label.graphics.type = GraphicsType.GT_POLYLINE
-        self.thickness_normal = 3
-        self.thickness_select = 5
-
         self.point_index = 0
+
+    def set_type(self, type, color=QColor(255, 0, 0)):
+        self._label.type = type
+
+        pcolor = QColor.fromRgbF(color.redF(), color.greenF(), color.blueF(), color.alphaF())
+        pen = QPen(pcolor, self.thickness_normal)  # 红色边框，2像素宽
+        pen.setStyle(Qt.PenStyle.SolidLine)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        self.setPen(pen)
+        self.setBrush(QBrush(Qt.GlobalColor.transparent))
 
     def commit_point(self, point: Point):
         pos = self.mapFromScene(QPointF(point.x, point.y))
@@ -225,7 +234,6 @@ class Polyline(PolyGraphicsBase):
             for point in points[1:]:
                 path.lineTo(point.x, point.y)
 
-        self.setBrush(QBrush(Qt.GlobalColor.transparent))
         self.setPath(path)
         if self.anchor_moving_index < 0:
             (self.show_anchors if self.anchor_visible else self.hide_anchors)()

@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 from utils.logger import logger
+from utils.config import Global
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QGraphicsPixmapItem, QGraphicsView, QApplication
-from PyQt6.QtGui import QWheelEvent, QPainter
+from PyQt6.QtGui import QWheelEvent, QPainter, QKeyEvent
 
 
 class ResizableGraphicsView(QGraphicsView):
+    on_type_specified = pyqtSignal(int)
+    on_scale_changed = pyqtSignal(float)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -34,6 +38,12 @@ class ResizableGraphicsView(QGraphicsView):
 
         self.pixmap = None  # 当前显示的图元
 
+        # 接收数字按键 指定元素类型
+        self.type_specified_timer = QTimer()
+        self.type_specified_timer.setSingleShot(True)  # 设置为一次性定时器
+        self.type_specified_timer.timeout.connect(self.__type_specified_timeout)
+        self.specified_type = ''
+
     def set_pixmap_item(self, pixmap: QGraphicsPixmapItem):
         """设置当前显示的图元"""
         self.pixmap = pixmap
@@ -53,6 +63,7 @@ class ResizableGraphicsView(QGraphicsView):
         if self.current_scale() > self.max_scale:
             return
         self.scale(self.scale_factor, self.scale_factor)
+        self.__on_scale_changed()
 
     def zoom_out(self):
         """缩小图片"""
@@ -60,18 +71,21 @@ class ResizableGraphicsView(QGraphicsView):
         if self.current_scale() < self.min_scale:
             return
         self.scale(1 / self.scale_factor, 1 / self.scale_factor)
+        self.__on_scale_changed()
 
     def zoom_fit(self):
         # logger.info("Fitting view to window")
         if self.scene() and self.scene().sceneRect().isValid():  # 调整视图以适应窗口
             # logger.info(f"Scene rect is valid, fitting in view {self.scene().sceneRect()}")
             self.fitInView(self.scene().sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.__on_scale_changed()
 
     def zoom_100(self):
         logger.info("Resetting scale to original size")
         self.resetTransform()  # 重置为原始大小(100%缩放)
         if self.pixmap:  # 将视图中心对准图片中心
             self.centerOn(self.pixmap)
+        self.__on_scale_changed()
 
     def current_scale(self):
         """
@@ -87,8 +101,13 @@ class ResizableGraphicsView(QGraphicsView):
         # 通常水平和垂直缩放相同，但可以取平均值
         return (scale_x + scale_y) / 2
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event: QKeyEvent):
         """使用 modifiers() 方法检查 Ctrl 键状态"""
+        if event.text().isdigit() and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+            self.specified_type += event.text()
+            if self.type_specified_timer.isActive():
+                self.type_specified_timer.stop()
+            self.type_specified_timer.start(360)  # 360ms
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         super().keyPressEvent(event)
@@ -179,3 +198,11 @@ class ResizableGraphicsView(QGraphicsView):
         pixel_pos = self.pixmap.mapFromScene(scene_pos)
         x, y = int(pixel_pos.x()), int(pixel_pos.y())
         return round(x, 2), round(y, 2)
+
+    def __type_specified_timeout(self):
+        self.on_type_specified.emit(int(self.specified_type))
+        self.specified_type = ''
+
+    def __on_scale_changed(self):
+        Global["scale"] = self.current_scale()
+        self.on_scale_changed.emit(Global["scale"])

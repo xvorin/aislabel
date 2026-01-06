@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 from utils.logger import logger
-from utils.config import Global
-from models.data import PaintCommand, Point, LabelGroup
+
+from models.data import PaintCommand, Point, LabelGroup, LabelSchema
+
 from canvas.resizable_view import ResizableGraphicsView
 from canvas.graphics.factory import GraphicsFactory
 from canvas.graphics.anchor import Anchor
 from canvas.operations import Operations
+from canvas.tables.schema import LabelSchemaTable
+from canvas.tables.group import LabelGroupTable
 
 from project.provider import LabelingDataItem
 
 from PyQt6.QtCore import QObject, QSize, QTimer, QEvent, QPointF
 from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem
-from PyQt6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QTransform
+from PyQt6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QTransform, QColor
 
 import qtawesome as qta
 
@@ -33,13 +36,15 @@ class Canvas(QObject):
         self.view.setObjectName("view")
         self.view.setScene(self.scene)
         ui.canvas_grid_layout.addWidget(self.view, 1, 0, 1, 1)
-        ui.centralwidget.window().installEventFilter(self)  # self包含eventFilter方法
+        ui.centralwidget.window().installEventFilter(self)  # self包含eventFilter方法, 接收窗口放大缩小的通知
 
         # 用于绘图的鼠标操作回调
         self.view.on_mouse_left_single_clicked = self._on_mouse_left_single_clicked
         self.view.on_mouse_left_double_clicked = self._on_mouse_left_double_clicked
         self.view.on_mouse_right_clicked = self._on_mouse_right_clicked
         self.view.on_mouse_move = self._on_mouse_move
+        self.view.on_type_specified.connect(self._on_type_specified)  # 接收数字键 设置item业务类别
+        self.view.on_scale_changed.connect(self._on_scale_changed)  # 监听缩放 并修改item边线粗细
 
         # 用于判断item移动
         self.view.on_mouse_left_press = self._on_mouse_left_press
@@ -56,7 +61,32 @@ class Canvas(QObject):
 
         self.labeling = None  # 正在被标注的数据, 外部选定图片后注入
 
+        self.project = None
+        self.schema = LabelSchemaTable(self.ui)
+        self.schema.on_label_schema_changed.connect(self._on_label_schema_changed)
+        self.group = LabelGroupTable(self.ui)
+        self.group.on_label_group_changed.connect(self._on_label_group_changed)
+        self.group.on_label_instance_selected.connect(self._on_label_instance_selected)
+
         logger.info("Canvas initialized")
+
+    def eventFilter(self, object, event):
+        if event.type() == QEvent.Type.WindowStateChange:
+            self.view.zoom_fit()
+        return super().eventFilter(object, event)
+
+    def set_project(self, project):
+        self.project = project
+        self.schema.set_project(project)
+        self.group.set_project(project)
+
+    def get_color_by_type(self, type):
+        categories = [category for category in self.project.schema.categories if category.type == type]
+        if 0 == len(categories):
+            categories = self.project.schema.categories
+        if 0 != len(categories):
+            return type, QColor(categories[0].color)
+        return 0, QColor("#000000")
 
     def load(self, labeling: LabelingDataItem):
         self.labeling = labeling
@@ -70,26 +100,23 @@ class Canvas(QObject):
         self.scene.addItem(self.pixmap)
         self.scene.setSceneRect(self.pixmap.boundingRect())
 
-        Global["image_size"] = (self.scene.sceneRect().width(), self.scene.sceneRect().height())
-
         QTimer.singleShot(0, self.view.zoom_fit)
 
         if self.labeling.operations is None:
-            self.labeling.operations = Operations(self.scene)
-            labels = self.labeling.labels.model_copy(deep=True) if self.labeling.labeled() else LabelGroup()
-            self.labeling.operations.record(labels)
+            self.labeling.operations = Operations(self)
+            group = self.labeling.group.model_copy(deep=True) if self.labeling.labeled() else LabelGroup()
+            self.labeling.operations.record(group)
             self.labeling.operations.dirty_state_changed.connect(self._on_dirty_state_changed)
             self.labeling.operations.set_dirty(False)
 
-        curr = self.labeling.operations.labels(self.labeling.operations.index)
-        self.labeling.operations.show_labels(curr)
+        self.labeling.operations.refresh()
         self.labeling.operations.set_dirty()
 
     def save(self):
         if self.labeling is None:
             return
         self.labeling.operations.set_dirty(False)
-        self.labeling.update_labels(self._build_current_labels())
+        self.labeling.update_label_group(self._build_current_label_group())
 
     def __setup_toolbar(self):
         self.toolbar.setIconSize(QSize(23, 23))
@@ -168,7 +195,7 @@ class Canvas(QObject):
             self.editing = None
 
     def _on_mouse_left_single_clicked(self, x, y):
-        self._cancel_focus()
+        self._cancel_selection()
         if self.labeling is None:
             return
         if self.editing is None:
@@ -176,13 +203,17 @@ class Canvas(QObject):
                 return
             if self.command == PaintCommand.PCMD_ARROR:
                 return
-            self.editing = GraphicsFactory.create(self.command)
+            self.editing = GraphicsFactory.create(self.command, id=self._generate_label_instance_id())
+            category = self.schema.focused_category()
+            if category is not None:
+                type, color = self.get_color_by_type(category.type)
+                self.editing.set_type(type, color)
             self.scene.addItem(self.editing)
         self.editing.commit_point(Point(x=x, y=y))
         self.scene.update()
 
     def _on_mouse_left_double_clicked(self, x, y):
-        self._cancel_focus()
+        self._cancel_selection()
         if self.editing is None:
             if len(self.scene.selectedItems()) > 0:
                 anchor = self.scene.selectedItems()[0]
@@ -195,11 +226,10 @@ class Canvas(QObject):
         self.editing.commit_point(Point(x=x, y=y))
         self.editing.switch_edit_mode()  # 编辑完成
         self.editing = None
-
         self._record_operation()
 
     def _on_mouse_right_clicked(self, x, y):
-        self._cancel_focus()
+        self._cancel_selection()
         if self.editing is not None:
             self.editing.delete_point()
             if self.editing.empty() and self.editing in self.scene.items():
@@ -212,29 +242,24 @@ class Canvas(QObject):
             self.editing.draft_point(Point(x=x, y=y))
             self.scene.update()
 
-    def _cancel_focus(self):
+    def _cancel_selection(self):
         items = self.scene.items()
         items = [item for item in items if not isinstance(item, Anchor) and not item.isSelected()]
         for item in items:
             item.itemChange(QGraphicsItem.GraphicsItemChange.ItemSelectedChange, 0)
 
-    def eventFilter(self, object, event):
-        if event.type() == QEvent.Type.WindowStateChange:
-            self.view.zoom_fit()
-        return super().eventFilter(object, event)
-
-    def _build_current_labels(self):
+    def _build_current_label_group(self):
         items = self.scene.items()
         items = [item for item in items if not isinstance(item, Anchor) and not isinstance(item, QGraphicsPixmapItem)]
-        labels = LabelGroup()
+        group = LabelGroup()
         for item in items:
-            labels.labels.append(item.label())
-        return labels
+            group.labels.append(item.label())
+        return group
 
     def _record_operation(self):
         if self.labeling is None:
             return
-        self.labeling.operations.record(self._build_current_labels())
+        self.labeling.operations.record(self._build_current_label_group())
 
     def _undo(self):
         if self.labeling is not None:
@@ -259,3 +284,55 @@ class Canvas(QObject):
     def _on_dirty_state_changed(self, dirty):
         # 更新保存按钮的图标
         self.ui.save.setIcon(qta.icon('mdi.content-save-alert' if dirty else 'mdi.content-save'))
+
+    def _on_label_schema_changed(self, schema: LabelSchema):
+        if self.labeling is None:
+            return
+        self.labeling.operations.refresh()
+
+    def _on_label_group_changed(self, changes: LabelGroup):
+        if self.labeling is None:
+            return
+        ids = [label.id for label in changes.labels]
+        group = self._build_current_label_group()
+        group.labels = [label for label in group.labels if label.id in ids]  # 通过table删除item
+        for label in group.labels:
+            for change in changes.labels:
+                if label.id == change.id:
+                    label.type = change.type
+                    label.visible = change.visible
+        self.labeling.operations.show_label_group(group)
+        self._record_operation()
+
+    def _on_label_instance_selected(self, ids):
+        items = self.scene.items()
+        items = [item for item in items if not isinstance(item, Anchor) and not isinstance(item, QGraphicsPixmapItem)]
+        for item in items:
+            item.setSelected(item.label().id in ids)
+
+    def _generate_label_instance_id(self):
+        ids = set()
+        maxid = 512
+        for label in self._build_current_label_group().labels:
+            ids.add(label.id)
+        for id in range(maxid):
+            if id not in ids:
+                return id
+        return maxid
+
+    def _on_type_specified(self, type):
+        if self.schema is None:
+            return
+        if not self.schema.focus_category_by_type(type):
+            return
+        type, color = self.get_color_by_type(type)
+        for item in self.scene.selectedItems():
+            if isinstance(item, Anchor):
+                continue
+            item.set_type(type, color)
+        self._record_operation()
+
+    def _on_scale_changed(self, scale):
+        if self.labeling is None:
+            return
+        self.labeling.operations.refresh()

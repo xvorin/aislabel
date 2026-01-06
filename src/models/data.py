@@ -26,11 +26,11 @@ class PaintCommand(Enum):
 
 
 class GraphicsType(Enum):
-    GT_LINESEG = 'segment'
-    GT_POLYLINE = 'polyline'
-    GT_RECTANGLE = 'rectangle'
-    GT_POLYGON = 'polygon'
-    GT_KEYPOINT = 'keypoint'
+    GT_LINESEG = '线段'
+    GT_POLYLINE = '折线'
+    GT_RECTANGLE = '矩形'
+    GT_POLYGON = '多边形'
+    GT_KEYPOINT = '关键点'
 
 
 class Point(BaseModel):
