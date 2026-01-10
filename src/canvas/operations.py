@@ -19,12 +19,13 @@ class Operations(QObject):
         self.index = -1
         self.dirty = False
 
-    def record(self, group: LabelGroup):
+    def record(self, group: LabelGroup, inform=True):
         self.index += 1
         self.history.insert(self.index, group.model_copy(deep=True))
         self.history = self.history[: self.index + 1]
         self.set_dirty(True)
-        self.canvas.group.set_label_group(group)  # 通知table数据变化
+        if inform:
+            self.canvas.group.set_label_group(group)  # 通知table数据变化
 
     def label_group(self, index: int):
         if index < 0 or index >= len(self.history):

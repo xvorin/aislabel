@@ -22,6 +22,7 @@ class GraphicsBase:
         # self.thickness_select = 5 / 1280 * Global["image_size"][0] / Global["scale"]
         self.thickness_normal = 2 / Global["scale"]
         self.thickness_select = 3.6 / Global["scale"]
+        self.radius = 6 / Global["scale"]  # for keypoint
         self.brush_alpha = 0.2
 
         self.could_redit = True
@@ -497,8 +498,6 @@ class Keypoint(GraphicsBase, QGraphicsEllipseItem):
         self.setAcceptHoverEvents(True)
 
         self.set_type(0)
-
-        self.radius = 8
         self.could_redit = False
 
     def set_type(self, type, color=QColor(255, 0, 0)):

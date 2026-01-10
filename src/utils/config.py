@@ -17,7 +17,7 @@ class Configuration:
         初始化配置管理类
 
         :param filepath: JSON配置文件的路径
-        :param default_config: 默认配置字典（当文件不存在时使用）
+        :param default: 默认配置字典（当文件不存在时使用）
         """
         self.workroot = Path(WorkRoot)
 
@@ -58,7 +58,7 @@ class Configuration:
                 self.config = json.load(f)
         except (json.JSONDecodeError, FileNotFoundError) as e:
             logger.error(f"配置加载失败: {e}, 使用默认配置")
-            self.config = self.default_config.copy()
+            self.config = self.default.copy()
             self.save()
 
     def save(self):

@@ -4,8 +4,7 @@ from models.data import LabelGroup, LabelInstance
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QFont, QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QTableView, QHeaderView, QComboBox, QPushButton
-from PyQt6.QtCore import QObject, pyqtSignal
-
+from PyQt6.QtCore import QObject, pyqtSignal, QItemSelection, QItemSelectionModel
 
 import qtawesome as qta
 
@@ -28,6 +27,17 @@ class LabelGroupTable(QObject):
         self.group = group
         self._show_label_group_table()
 
+    def set_selected_label_instance(self, ids: set):
+        selection = QItemSelection()
+        for row in range(self.model.rowCount()):
+            id = int(self.model.data(self.model.index(row, 0), Qt.ItemDataRole.DisplayRole))
+            if id not in ids:
+                continue
+            left = self.ui.label_group.model().index(row, 0)
+            right = self.ui.label_group.model().index(row, self.ui.label_group.model().columnCount() - 1)
+            selection.select(left, right)
+        self.ui.label_group.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+
     def _init_label_group_ui(self):
         """初始化UI"""
         font = QFont()
@@ -36,6 +46,14 @@ class LabelGroupTable(QObject):
         self.ui.label_group.setFont(font)
         self.ui.label_group.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.ui.label_group.verticalHeader().setDefaultSectionSize(20)
+        self.ui.label_group.setStyleSheet(
+            """
+            QTableView::item:selected {
+                background-color: #2196F3;      /* 选中单元格背景色 */
+                color: white;                   /* 选中单元格文字颜色 */
+            }
+            """
+        )
 
         headers = [
             {'name': '标签编号', 'size': 60, 'mode': QHeaderView.ResizeMode.Fixed},

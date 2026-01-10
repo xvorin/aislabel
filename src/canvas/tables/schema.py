@@ -44,6 +44,14 @@ class LabelSchemaTable(QObject):
         self.ui.label_schema.setFont(font)
         self.ui.label_schema.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.ui.label_schema.verticalHeader().setDefaultSectionSize(20)
+        self.ui.label_schema.setStyleSheet(
+            """
+            QTableView::item:selected {
+                background-color: #2196F3;      /* 选中单元格背景色 */
+                color: white;                   /* 选中单元格文字颜色 */
+            }
+            """
+        )
 
         headers = [
             {'name': '类型编号', 'size': 56, 'mode': QHeaderView.ResizeMode.Fixed},
@@ -106,9 +114,9 @@ class LabelSchemaTable(QObject):
         invalid = True
         if col == 0 and value.isdigit() and int(value) not in values:
             category.type, invalid = int(value), False
-        if col == 1 and value.isdigit() and int(value) not in values:
+        if col == 1 and value.isdigit():  # and int(value) not in values:
             category.export_id, invalid = int(value), False
-        if col == 2 and value not in values:
+        if col == 2:  # and value not in values:
             category.label, invalid = value, False
 
         if invalid:

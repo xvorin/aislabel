@@ -12,7 +12,9 @@ from canvas.tables.group import LabelGroupTable
 
 from project.provider import LabelingDataItem
 
-from PyQt6.QtCore import QObject, QSize, QTimer, QEvent, QPointF
+from aannotate.detect import Detect
+
+from PyQt6.QtCore import QObject, QSize, QTimer, QEvent, QPointF, pyqtSignal
 from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem
 from PyQt6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QTransform, QColor
 
@@ -20,6 +22,8 @@ import qtawesome as qta
 
 
 class Canvas(QObject):
+    on_label_group_saved = pyqtSignal()
+
     def __init__(self, ui):
         super().__init__()
         self.ui = ui
@@ -68,6 +72,9 @@ class Canvas(QObject):
         self.group.on_label_group_changed.connect(self._on_label_group_changed)
         self.group.on_label_instance_selected.connect(self._on_label_instance_selected)
 
+        # 模型检测
+        self.detect = Detect()
+
         logger.info("Canvas initialized")
 
     def eventFilter(self, object, event):
@@ -79,6 +86,8 @@ class Canvas(QObject):
         self.project = project
         self.schema.set_project(project)
         self.group.set_project(project)
+        self.detect.set_project(project)
+        self.ui.enable_auto_annotate.setChecked(self.project.config['aannotate']['enable'])
 
     def get_color_by_type(self, type):
         categories = [category for category in self.project.schema.categories if category.type == type]
@@ -112,11 +121,31 @@ class Canvas(QObject):
         self.labeling.operations.refresh()
         self.labeling.operations.set_dirty()
 
+        if self.ui.enable_auto_annotate.isChecked() and len(self.labeling.group.labels) == 0:
+            self.on_auto_annotate()
+
     def save(self):
         if self.labeling is None:
             return
-        self.labeling.operations.set_dirty(False)
         self.labeling.update_label_group(self._build_current_label_group())
+        if self.labeling.operations.dirty:
+            self.on_label_group_saved.emit()
+        self.labeling.operations.set_dirty(False)
+
+    def on_auto_annotate(self):
+        if self.labeling is None:
+            return
+        group = self.detect.infer(str(self.labeling.image()))
+        if group is not None:
+            self.labeling.operations.record(group)
+            self.labeling.operations.refresh()
+            self.labeling.operations.set_dirty()
+
+    def enable_auto_annotate(self):
+        if self.project is None:
+            return
+        self.project.config["aannotate"]["enable"] = self.ui.enable_auto_annotate.isChecked()
+        self.project.config.save()
 
     def __setup_toolbar(self):
         self.toolbar.setIconSize(QSize(23, 23))
@@ -164,6 +193,13 @@ class Canvas(QObject):
             self.toolbar.addAction(action)
         QShortcut(QKeySequence("Ctrl+Z"), self.view).activated.connect(self._undo)  # Ctrl+Z 撤销
         QShortcut(QKeySequence("Ctrl+Y"), self.view).activated.connect(self._redo)  # Ctrl+Y 重做
+        QShortcut(QKeySequence("Ctrl+S"), self.view).activated.connect(self.save)  # Ctrl+S 保存
+        QShortcut(QKeySequence("Ctrl+]"), self.view).activated.connect(self.view.zoom_in)  # Delete 放大
+        QShortcut(QKeySequence("Ctrl+["), self.view).activated.connect(self.view.zoom_out)  # Delete 缩小
+
+        delete_func = lambda: self.set_paint_cmd(PaintCommand.PCMD_DELETE)
+        QShortcut(QKeySequence("Delete"), self.view).activated.connect(delete_func)  # Delete 删除
+        QShortcut(QKeySequence("Backspace"), self.view).activated.connect(delete_func)  # Delete 删除
 
         # 放大/缩小工具
         self.toolbar.addSeparator()
@@ -178,6 +214,10 @@ class Canvas(QObject):
             action.setCheckable(tool['checkable'])  # 设置是否可选中
             action.triggered.connect(tool['command'])
             self.toolbar.addAction(action)
+
+        # 自动标注工具
+        self.ui.auto_annotate_label.clicked.connect(self.on_auto_annotate)
+        self.ui.enable_auto_annotate.stateChanged.connect(self.enable_auto_annotate)
 
     def set_paint_cmd(self, cmd: PaintCommand):
         logger.info(f"Setting paint command: {cmd}")
@@ -200,6 +240,7 @@ class Canvas(QObject):
             return
         if self.editing is None:
             if len(self.scene.selectedItems()) > 0:
+                self._inform_selected_items()
                 return
             if self.command == PaintCommand.PCMD_ARROR:
                 return
@@ -256,10 +297,10 @@ class Canvas(QObject):
             group.labels.append(item.label())
         return group
 
-    def _record_operation(self):
+    def _record_operation(self, inform=True):
         if self.labeling is None:
             return
-        self.labeling.operations.record(self._build_current_label_group())
+        self.labeling.operations.record(self._build_current_label_group(), inform)
 
     def _undo(self):
         if self.labeling is not None:
@@ -278,7 +319,7 @@ class Canvas(QObject):
         if self.moving_item_position is None:
             return
         if self.moving_item_position[0].pos() != self.moving_item_position[1]:
-            self._record_operation()  # 判断有item移动 则记录操作
+            self._record_operation(False)  # 判断有item移动 则记录操作
         self.moving_item_position = None
 
     def _on_dirty_state_changed(self, dirty):
@@ -336,3 +377,13 @@ class Canvas(QObject):
         if self.labeling is None:
             return
         self.labeling.operations.refresh()
+
+    def _inform_selected_items(self):
+        if self.group is None:
+            return
+        selected = [item for item in self.scene.selectedItems() if not isinstance(item, Anchor)]
+        self.group.set_selected_label_instance(set([item.label().id for item in set(selected)]))
+        for item in self.scene.items():
+            if isinstance(item, Anchor):
+                continue
+            item.setZValue(1 if item in selected else 0)

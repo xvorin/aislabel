@@ -2,6 +2,8 @@
 from enum import Enum
 from typing import List
 from pydantic import BaseModel
+from datetime import datetime
+
 from PyQt6.QtCore import QPointF
 
 
@@ -111,9 +113,56 @@ class AisLabelConfig(BaseModel):
     ]
 
 
+class TimeFilterMode(Enum):
+    TIME_NONE = '忽略时间'
+    TIME_CREATE = '创建时间'
+    TIME_MODIFY = '修改时间'
+
+    @classmethod
+    def values(cls) -> List:
+        """获取所有枚举值"""
+        return [member.value for member in cls]
+
+
+class TimeLogicType(Enum):
+    LOGIC_LT = '早于'
+    LOGIC_GT = '晚于'
+
+    @classmethod
+    def values(cls) -> List:
+        """获取所有枚举值"""
+        return [member.value for member in cls]
+
+
+class TimeFilterConfig(BaseModel):
+    mode: str = TimeFilterMode.TIME_NONE.value
+    type: str = TimeLogicType.LOGIC_GT.value
+    time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+class AttributeFilterConfig(BaseModel):
+    reverse: bool = False
+    indices: List[int] = []
+
+
+class ProjectFilterConfig(BaseModel):
+    show_ignored_images: bool = True
+    show_labeled_images: bool = True
+    image_index: AttributeFilterConfig = AttributeFilterConfig()
+    label_num: AttributeFilterConfig = AttributeFilterConfig()
+    label_category: AttributeFilterConfig = AttributeFilterConfig()
+    time_filter: TimeFilterConfig = TimeFilterConfig()
+
+
+class AutoAnnotate(BaseModel):
+    enable: bool = True
+
+
 class ProjectConfig(BaseModel):
     creation: str
     directory: str
     task: str
     description: str
     mschema: LabelSchema
+    mfilter: ProjectFilterConfig
+    aannotate: AutoAnnotate

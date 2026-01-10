@@ -25,6 +25,8 @@ class Project:
                 task=task,
                 description=desc,
                 mschema=type[0] if len(type) > 0 else DataModel.LabelSchema(),
+                mfilter=DataModel.ProjectFilterConfig(),
+                aannotate=DataModel.AutoAnnotate(),
             ).model_dump(),
         )
 

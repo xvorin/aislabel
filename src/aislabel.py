@@ -12,7 +12,7 @@ import qtawesome as qta
 class AisLabel:
     def __init__(self, ui):
         self.ui = ui
-        self.ui.splitter.setSizes([300, 560, 300])
+        self.ui.splitter.setSizes([316, 560, 260])
 
         self.project = None  # 当前项目
 
@@ -25,6 +25,7 @@ class AisLabel:
         self.ui.tools.addSeparator()
 
         self.canvas = Canvas(self.ui)
+        self.canvas.on_label_group_saved.connect(self.on_label_group_saved)
 
         self.manager = ProjectManagerDialog()
         self.manager.project_opened.connect(self.on_project_opened)
@@ -42,3 +43,6 @@ class AisLabel:
 
     def on_dataitem_activated(self, item: LabelingDataItem):
         self.canvas.load(item)
+
+    def on_label_group_saved(self):
+        self.provider.refresh_pictures_table()
