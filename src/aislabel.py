@@ -31,9 +31,6 @@ class AisLabel:
         self.manager.project_opened.connect(self.on_project_opened)
         self.manager.open_project()
 
-        self.ui.prev.setIcon(qta.icon('ei.arrow-left'))  # 上一张
-        self.ui.next.setIcon(qta.icon('ei.arrow-right'))  # 下一张
-
         self.ui.auto_annotate_label.setIcon(qta.icon('fa5s.magic'))  # fa5s.magic
 
     def on_project_opened(self, project: Project):

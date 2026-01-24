@@ -232,6 +232,11 @@ class Provider(QObject):
         # 设置忽略item居中显示
         self.ui.pictures.setItemDelegate(IconDelegate())
 
+        self.ui.prev.setIcon(qta.icon('ei.arrow-left'))  # 上一张
+        self.ui.next.setIcon(qta.icon('ei.arrow-right'))  # 下一张
+        self.ui.prev.clicked.connect(self._on_prev_clicked)
+        self.ui.next.clicked.connect(self._on_next_clicked)
+
     def _init_filter_ui(self):
         if self.project is None:
             return
@@ -447,3 +452,19 @@ class Provider(QObject):
             self.project.remove(data.filekey)
 
         self.refresh_pictures_table()
+
+    def _on_prev_clicked(self):
+        selected_rows = set([index.row() for index in self.ui.pictures.selectionModel().selectedRows()])
+        if not selected_rows:
+            return
+        first_selected_row = min(selected_rows)
+        prev_row = max(0, first_selected_row - 1)
+        self.ui.pictures.selectRow(prev_row)
+
+    def _on_next_clicked(self):
+        selected_rows = set([index.row() for index in self.ui.pictures.selectionModel().selectedRows()])
+        if not selected_rows:
+            return
+        last_selected_row = max(selected_rows)
+        next_row = min(self.model.rowCount() - 1, last_selected_row + 1)
+        self.ui.pictures.selectRow(next_row)
