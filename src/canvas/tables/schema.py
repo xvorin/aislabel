@@ -54,10 +54,11 @@ class LabelSchemaTable(QObject):
         )
 
         headers = [
-            {'name': '类型编号', 'size': 56, 'mode': QHeaderView.ResizeMode.Fixed},
-            {'name': '导出编号', 'size': 56, 'mode': QHeaderView.ResizeMode.Fixed},
-            {'name': '类型名称', 'size': 60, 'mode': QHeaderView.ResizeMode.Stretch},
-            {'name': '标签颜色', 'size': 60, 'mode': QHeaderView.ResizeMode.ResizeToContents},
+            {'name': '类型', 'size': 32, 'mode': QHeaderView.ResizeMode.Fixed},
+            {'name': '导入', 'size': 32, 'mode': QHeaderView.ResizeMode.Fixed},
+            {'name': '导出', 'size': 32, 'mode': QHeaderView.ResizeMode.Fixed},
+            {'name': '类型', 'size': 60, 'mode': QHeaderView.ResizeMode.Stretch},
+            {'name': '标签颜色', 'size': 56, 'mode': QHeaderView.ResizeMode.ResizeToContents},
         ]
 
         self.model = QStandardItemModel()
@@ -86,7 +87,7 @@ class LabelSchemaTable(QObject):
             return
 
         for index, category in enumerate(self.project.schema.categories):
-            row = [str(category.type), str(category.export_id), category.label]
+            row = [str(category.type), str(category.import_id), str(category.export_id), category.label]
             row = [QStandardItem(item) for item in row]
             for item in row:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -96,7 +97,7 @@ class LabelSchemaTable(QObject):
             button = QPushButton()
             button.setStyleSheet("QPushButton {background-color: " + category.color + "; }")
             button.clicked.connect(lambda checked, color=category.color: self._select_color(color))
-            self.ui.label_schema.setIndexWidget(self.model.index(index, 3), button)
+            self.ui.label_schema.setIndexWidget(self.model.index(index, 4), button)
 
         self.selected_row = max(0, min(self.selected_row, len(self.project.schema.categories) - 1))
         self.ui.label_schema.selectRow(self.selected_row)
@@ -108,15 +109,20 @@ class LabelSchemaTable(QObject):
         value = item.text()
 
         category = self.project.schema.categories[row]
-        values = [(category.type, category.export_id, category.label) for category in self.project.schema.categories]
+        values = [
+            (category.type, category.import_id, category.export_id, category.label)
+            for category in self.project.schema.categories
+        ]
         values = [v[col] for v in values]
 
         invalid = True
         if col == 0 and value.isdigit() and int(value) not in values:
             category.type, invalid = int(value), False
         if col == 1 and value.isdigit():  # and int(value) not in values:
+            category.import_id, invalid = int(value), False
+        if col == 2 and value.isdigit():  # and int(value) not in values:
             category.export_id, invalid = int(value), False
-        if col == 2:  # and value not in values:
+        if col == 3:  # and value not in values:
             category.label, invalid = value, False
 
         if invalid:
@@ -128,7 +134,7 @@ class LabelSchemaTable(QObject):
         button = self.sender()
         table = self.ui.label_schema
         model = self.model
-        rows = [row for row in range(model.rowCount()) if table.indexWidget(model.index(row, 3)) is button]
+        rows = [row for row in range(model.rowCount()) if table.indexWidget(model.index(row, 4)) is button]
         if len(rows) == 0:
             return
 
@@ -147,8 +153,11 @@ class LabelSchemaTable(QObject):
 
     def _on_create_label_category(self):
         type = self._generate_unique_value([category.type for category in self.project.schema.categories])
+        import_id = self._generate_unique_value([category.import_id for category in self.project.schema.categories])
         export_id = self._generate_unique_value([category.export_id for category in self.project.schema.categories])
-        category = LabelCategory(type=type, export_id=export_id, label='', color='#000000', remark='')
+        category = LabelCategory(
+            type=type, import_id=import_id, export_id=export_id, label='', color='#000000', remark=''
+        )
         self.project.schema.categories.append(category)
         self._modified_project_schema()
 

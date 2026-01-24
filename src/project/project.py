@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from utils.config import Config, Configuration
-from utils.logger import logger
 from project.storage import Storage
 
 from datetime import datetime

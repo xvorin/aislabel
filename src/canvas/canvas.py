@@ -15,7 +15,7 @@ from project.provider import LabelingDataItem
 from aannotate.detect import Detect
 
 from PyQt6.QtCore import QObject, QSize, QTimer, QEvent, QPointF, pyqtSignal
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem
+from PyQt6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem, QApplication
 from PyQt6.QtGui import QPixmap, QAction, QShortcut, QKeySequence, QTransform, QColor
 
 import qtawesome as qta
@@ -194,12 +194,21 @@ class Canvas(QObject):
         QShortcut(QKeySequence("Ctrl+Z"), self.view).activated.connect(self._undo)  # Ctrl+Z 撤销
         QShortcut(QKeySequence("Ctrl+Y"), self.view).activated.connect(self._redo)  # Ctrl+Y 重做
         QShortcut(QKeySequence("Ctrl+S"), self.view).activated.connect(self.save)  # Ctrl+S 保存
-        QShortcut(QKeySequence("Ctrl+]"), self.view).activated.connect(self.view.zoom_in)  # Delete 放大
-        QShortcut(QKeySequence("Ctrl+["), self.view).activated.connect(self.view.zoom_out)  # Delete 缩小
+        QShortcut(QKeySequence("Ctrl+]"), self.view).activated.connect(self.view.zoom_in)  # 放大
+        QShortcut(QKeySequence("Ctrl+["), self.view).activated.connect(self.view.zoom_out)  # 缩小
+        QShortcut(QKeySequence("W"), self.view).activated.connect(lambda: self._move_items("U"))
+        QShortcut(QKeySequence("S"), self.view).activated.connect(lambda: self._move_items("D"))
+        QShortcut(QKeySequence("A"), self.view).activated.connect(lambda: self._move_items("L"))
+        QShortcut(QKeySequence("D"), self.view).activated.connect(lambda: self._move_items("R"))
 
         delete_func = lambda: self.set_paint_cmd(PaintCommand.PCMD_DELETE)
         QShortcut(QKeySequence("Delete"), self.view).activated.connect(delete_func)  # Delete 删除
         QShortcut(QKeySequence("Backspace"), self.view).activated.connect(delete_func)  # Delete 删除
+        QShortcut(QKeySequence("Z"), self.view).activated.connect(delete_func)  # Delete 删除
+
+        QShortcut(QKeySequence("Ctrl+A"), self.view).activated.connect(self._select_all)  # Ctrl+C 复制
+        QShortcut(QKeySequence("Ctrl+C"), self.view).activated.connect(self._copy)  # Ctrl+C 复制
+        QShortcut(QKeySequence("Ctrl+V"), self.view).activated.connect(self._paste)  # Ctrl+V 粘贴
 
         # 放大/缩小工具
         self.toolbar.addSeparator()
@@ -310,6 +319,36 @@ class Canvas(QObject):
         if self.labeling is not None:
             self.labeling.operations.redo()
 
+    def _select_all(self):
+        items = self.scene.items()
+        items = [item for item in items if not isinstance(item, Anchor) and not isinstance(item, QGraphicsPixmapItem)]
+        for item in items:
+            item.setSelected(True)
+
+    def _copy(self):
+        clipboard = QApplication.clipboard()
+        group = LabelGroup()
+        [group.labels.append(item.label()) for item in self.scene.selectedItems() if not isinstance(item, Anchor)]
+        clipboard.setText(group.model_dump_json())
+
+    def _paste(self):
+        if self.labeling is None:
+            return
+        clipboard = QApplication.clipboard()
+        try:
+            copied = LabelGroup.model_validate_json(clipboard.text())
+        except Exception as e:
+            logger.warning(f"Failed to parse clipboard content as LabelGroup: {e}")
+            return
+        group = self._build_current_label_group()
+        exclude_ids = set()
+        for label in copied.labels:
+            label.id = self._generate_label_instance_id(exclude_ids)
+            exclude_ids.add(label.id)
+            group.labels.append(label)
+        self.labeling.operations.record(group)
+        self.labeling.operations.refresh()
+
     def _on_mouse_left_press(self, x, y):
         """鼠标按下时记录要移动的项目和起始位置"""
         item = self.scene.itemAt(QPointF(x, y), QTransform())
@@ -351,13 +390,13 @@ class Canvas(QObject):
         for item in items:
             item.setSelected(item.label().id in ids)
 
-    def _generate_label_instance_id(self):
+    def _generate_label_instance_id(self, exclude_ids=None):
         ids = set()
         maxid = 512
         for label in self._build_current_label_group().labels:
             ids.add(label.id)
         for id in range(maxid):
-            if id not in ids:
+            if id not in ids and (exclude_ids is None or id not in exclude_ids):
                 return id
         return maxid
 
@@ -387,3 +426,16 @@ class Canvas(QObject):
             if isinstance(item, Anchor):
                 continue
             item.setZValue(1 if item in selected else 0)
+
+    def _move_items(self, direction: str = ''):
+        # selected = [item for item in self.scene.selectedItems() if not isinstance(item, Anchor)]
+        selected = self.scene.selectedItems()
+        move_pixels = 1
+        if direction == 'U':
+            [item.moveBy(0, -move_pixels) for item in selected]
+        if direction == 'D':
+            [item.moveBy(0, move_pixels) for item in selected]
+        if direction == 'L':
+            [item.moveBy(-move_pixels, 0) for item in selected]
+        if direction == 'R':
+            [item.moveBy(move_pixels, 0) for item in selected]

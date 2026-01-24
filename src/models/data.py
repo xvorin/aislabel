@@ -66,6 +66,7 @@ class Graphics(BaseModel):
 
 class LabelCategory(BaseModel):
     type: int
+    import_id: int
     export_id: int
     label: str
     color: str
@@ -88,6 +89,8 @@ class LabelInstance(BaseModel):
 
 class LabelGroup(BaseModel):
     ignored: bool = False
+    width: int = 0
+    height: int = 0
     labels: List[LabelInstance] = []
 
 
@@ -98,16 +101,17 @@ class AisLabelConfig(BaseModel):
         LabelSchema(
             name="足球",
             categories=[
-                LabelCategory(type=0, export_id=0, label="Football", color="#000000", remark=""),
-                LabelCategory(type=1, export_id=1, label="Person", color="#FFFFFF", remark=""),
+                LabelCategory(type=0, import_id=0, export_id=0, label="Football", color="#000000", remark=""),
+                LabelCategory(type=1, import_id=1, export_id=1, label="Person", color="#FFFFFF", remark=""),
             ],
         ),
         LabelSchema(
             name="篮球",
             categories=[
-                LabelCategory(type=0, export_id=0, label="Basketball", color="#000000", remark=""),
-                LabelCategory(type=1, export_id=1, label="EmptyNet", color="#FFFFFF", remark=""),
-                LabelCategory(type=2, export_id=2, label="BasketballInNet", color="#EEEEEE", remark=""),
+                LabelCategory(type=0, import_id=32, export_id=0, label="Basketball", color="#FFFFFF", remark=""),
+                LabelCategory(type=0, import_id=38, export_id=0, label="Basketball", color="#FFFFFF", remark=""),
+                LabelCategory(type=1, import_id=100, export_id=1, label="BasketballInNet", color="#FF0000", remark=""),
+                LabelCategory(type=2, import_id=101, export_id=2, label="EmptyNet", color="#0000FF", remark=""),
             ],
         ),
     ]

@@ -7,11 +7,13 @@ from PyQt6.QtCore import pyqtSignal, QObject, Qt, QTimer, QDateTime
 from PyQt6.QtGui import QFont, QStandardItemModel, QStandardItem, QAction, QCursor
 from PyQt6.QtWidgets import QTableView, QHeaderView, QMenu, QStyledItemDelegate
 
+from typing import Dict
+from PIL import Image
+
 import qtawesome as qta
 
 import datetime
 import platform
-from typing import Dict
 
 
 class LabelingDataItem:
@@ -52,6 +54,8 @@ class LabelingDataItem:
 
     def _save_label_group(self):
         file = self.project.label_path(self.filekey)
+        with Image.open(self.image()) as image:
+            self.group.width, self.group.height = image.size
         with open(str(file), 'w', encoding='utf-8') as f:
             f.write(self.group.model_dump_json(indent=4))
 

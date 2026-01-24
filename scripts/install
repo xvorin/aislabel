@@ -13,5 +13,6 @@ requests
 pydantic
 sqlalchemy
 python-magic-bin # python-magic
+filetype
 
 # pip install -i https://pypi.tuna.tsinghua.edu.cn/simple/

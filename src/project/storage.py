@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 from PIL import Image
 from datetime import datetime
 
+import mimetypes
 import numpy as np
 import tempfile
 import hashlib
@@ -101,8 +102,8 @@ class Storage:
             if source_path.is_dir():
                 return self._import_directory(source_path) > 0
 
-            mime = magic.Magic(mime=True)
-            type = mime.from_file(str(source_path))
+            type, _ = mimetypes.guess_type(str(source_path))
+            logger.info(f"Loading source: {source} type: {type}")
 
             if type.startswith('image/'):
                 return self._import_image(source_path) > 0
@@ -110,7 +111,7 @@ class Storage:
             if type.startswith('video/'):
                 return self._import_video(source_path) > 0
         except Exception as e:
-            logger.error(f"Loading source: {source} {e}")
+            logger.error(f"Loading source error: {source} {e}")
             return False
 
         return False
@@ -235,3 +236,89 @@ class Storage:
     def __contains__(self, filename: str) -> bool:
         """检查图片是否存在"""
         return filename in self.keys
+
+    # # ---------- 临时方法 ----------
+    # # 把标注好的现有yolo数据集导入当前系统
+    # def _import_image(self, source: str, need_check=True) -> Optional[str]:
+    #     """保存图片并注册到系统"""
+    #     md5 = self._calculate_md5(source)
+    #     if md5 is None:
+    #         logger.error(f"Failed to calculate MD5 for image source.")
+    #         return False
+    #     if md5 in self.md5s:
+    #         # logger.warning(f"Image already exists with MD5: {md5}")
+    #         return False
+
+    #     if need_check:
+    #         with Image.open(source) as image:
+    #             width, height = image.size
+    #             frame = np.array(image)
+    #             if frame is None or frame.size == 0:
+    #                 logger.warning(f"Invalid image data from source: {source}")
+    #                 return False
+
+    #     # 生成唯一文件名
+    #     filekey = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{md5}"
+    #     shutil.copy(source, self.get_image_path(filekey))
+
+    #     label = self.get_label_path(filekey)
+    #     source_label = Path(source).with_suffix('.txt')
+
+    #     parts = list(source_label.parts)
+    #     print(parts)
+    #     parts[8] = 'labels'  # 替换第8个元素为 'labels'
+    #     source_label = Path(*parts)
+
+    #     logger.info(f"Looking for label file: {source_label} to: {label}")
+
+    #     labels = []
+    #     if source_label.exists():
+    #         try:
+    #             with open(source_label, 'r') as f:
+    #                 for line in f:
+    #                     line = line.strip()
+    #                     if not line:
+    #                         continue
+    #                     parts = line.split()
+    #                     if len(parts) != 5:
+    #                         logger.warning(f"Invalid YOLO line in {source_label}: {line}")
+    #                         continue
+    #                     class_id, x_center, y_center, w, h = map(float, parts)
+    #                     # 转换为绝对坐标 (左上, 右下)
+    #                     x1 = (x_center - w / 2) * width
+    #                     y1 = (y_center - h / 2) * height
+    #                     x2 = (x_center + w / 2) * width
+    #                     y2 = (y_center + h / 2) * height
+    #                     # 确保坐标顺序正确
+    #                     x1, x2 = min(x1, x2), max(x1, x2)
+    #                     y1, y2 = min(y1, y2), max(y1, y2)
+
+    #                     label_item = {
+    #                         "id": len(labels),
+    #                         "type": int(class_id),  # 默认为0，可根据需要调整
+    #                         "visible": True,
+    #                         "graphics": {"type": "矩形", "points": [{"x": x1, "y": y1}, {"x": x2, "y": y2}]},
+    #                     }
+    #                     labels.append(label_item)
+    #         except Exception as e:
+    #             logger.error(f"Failed to read or parse label file {source_label}: {e}")
+    #             labels = []
+
+    #         # 构建 JSON 对象
+    #         json_data = {"ignored": False, "width": width, "height": height, "labels": labels}
+
+    #         # 写入 JSON 文件
+    #         import json
+
+    #         try:
+    #             with open(label, 'w', encoding='utf-8') as f:
+    #                 json.dump(json_data, f, indent=2, ensure_ascii=False)
+    #         except Exception as e:
+    #             logger.error(f"Failed to write label file {label}: {e}")
+    #             return False
+
+    #     # 注册到系统
+    #     self.md5s.add(md5)
+    #     self.keys.append(filekey)
+
+    #     return True

@@ -5,6 +5,7 @@ from resource.project_create_ui import Ui_Dialog as Ui_CreateDialog
 from utils.logger import logger
 from utils.config import Config
 from models.data import AnnotationTaskType
+from models.exporter.yolo_det_exporter import YOLOMultiProjectExporter
 from project.project import Project
 
 from PyQt6.QtCore import pyqtSignal, QSize, Qt
@@ -114,7 +115,7 @@ class ProjectManagerDialog(QDialog):
 
         self.ui.export_progress.setVisible(False)
 
-        self.ui.valset_ratio.setText('30%')
+        self.ui.valset_ratio.setText('20%')
 
         # 初始化UI
         self._init_ui()
@@ -139,7 +140,7 @@ class ProjectManagerDialog(QDialog):
             {'name': '创建时间', 'size': 20, 'mode': QHeaderView.ResizeMode.ResizeToContents},
             {'name': '业务类型', 'size': 80, 'mode': QHeaderView.ResizeMode.Fixed},
             # {'name': '任务类型', 'size': 20, 'mode': QHeaderView.ResizeMode.Fixed},
-            {'name': '标注进度', 'size': 80, 'mode': QHeaderView.ResizeMode.ResizeToContents},
+            # {'name': '标注进度', 'size': 80, 'mode': QHeaderView.ResizeMode.ResizeToContents},
             {'name': '项目位置', 'size': 200, 'mode': QHeaderView.ResizeMode.ResizeToContents},
             {'name': '备注信息', 'size': 200, 'mode': QHeaderView.ResizeMode.Stretch},
             {'name': '', 'size': 40, 'mode': QHeaderView.ResizeMode.Fixed},
@@ -160,39 +161,46 @@ class ProjectManagerDialog(QDialog):
             self._show_project(project)
 
     def _show_project(self, project: Project):
-        row = self.model.rowCount()
+        row, col = self.model.rowCount(), 0
 
         check = QStandardItem()
         check.setCheckable(True)
         check.setCheckState(Qt.CheckState.Unchecked)
         check.setEditable(True)
-        self.model.setItem(row, 0, check)
+        self.model.setItem(row, col, check)
+        col += 1
 
         item = QStandardItem(project.config['creation'])
         item.setEditable(False)
-        self.model.setItem(row, 1, item)
+        self.model.setItem(row, col, item)
+        col += 1
 
         item = QStandardItem(project.config['mschema']['name'])
         item.setEditable(False)
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.model.setItem(row, 2, item)
+        self.model.setItem(row, col, item)
+        col += 1
 
-        item = QStandardItem('20%[(123,34)/157]')
-        item.setEditable(False)
-        self.model.setItem(row, 3, item)
+        # item = QStandardItem('20%[(123,34)/157]')
+        # item.setEditable(False)
+        # self.model.setItem(row, col, item)
+        # col += 1
 
         item = QStandardItem(project.config['directory'])
         item.setEditable(False)
-        self.model.setItem(row, 4, item)
+        self.model.setItem(row, col, item)
+        col += 1
 
         item = QStandardItem(project.config['description'])
         item.setEditable(False)
-        self.model.setItem(row, 5, item)
+        self.model.setItem(row, col, item)
+        col += 1
 
         button = QPushButton()
         button.setIcon(qta.icon('mdi6.database-import'))
         button.clicked.connect(lambda checked, r=row: self._import_data(r))
-        self.ui.projects.setIndexWidget(self.model.index(row, 6), button)
+        self.ui.projects.setIndexWidget(self.model.index(row, col), button)
+        col += 1
 
     def _on_project_created(self, project: Project):
         self.projects.append(project)
@@ -251,6 +259,24 @@ class ProjectManagerDialog(QDialog):
         if not directory.exists() or not directory.is_absolute():
             QMessageBox.warning(self, "导出目录不合法", "请指定合法的导出目录")
             return
+
+        indices = self._get_checked_project_indices()
+        for idx in indices:
+            logger.info(f"select project {self.projects[idx].directory}")
+
+        self.ui.export_progress.setVisible(True)
+
+        exporter = YOLOMultiProjectExporter()
+        exporter.process.connect(lambda p, t: self.ui.export_progress.setValue(int(p / t * 100)))
+        exporter.export(
+            [self.projects[idx] for idx in indices],
+            directory,
+            train_ratio=1 - float(self.ui.valset_ratio.text().rstrip('%')) / 100,
+            random_seed=0,
+        )
+
+        self.ui.export_progress.setVisible(False)
+
         logger.info(f"导出项目{str(directory)}")
 
     def _import_data(self, row):
@@ -269,3 +295,12 @@ class ProjectManagerDialog(QDialog):
 
         if filenames:
             self.projects[row].import_media(filenames)
+
+    def _get_checked_project_indices(self):
+        """返回所有被勾选项目的行索引列表"""
+        checked_indices = []
+        for row in range(self.model.rowCount()):
+            item = self.model.item(row, 0)  # 第一列是复选框
+            if item and item.checkState() == Qt.CheckState.Checked:
+                checked_indices.append(row)
+        return checked_indices

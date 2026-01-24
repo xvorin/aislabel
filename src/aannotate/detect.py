@@ -12,7 +12,7 @@ import os
 
 
 class Detect:
-    def __init__(self, model="yolo26x.pt"):
+    def __init__(self, model="best.pt"):
         self.project = None
         self.model = YOLO(os.path.join(WorkRoot, 'src', 'resource', 'models', model))
 
@@ -52,7 +52,7 @@ class Detect:
             LabelGroup: 转换后的标注组
         """
 
-        fetch_types = [category.type for category in schema.categories]
+        fetch_types = {category.import_id: category.type for category in schema.categories}
 
         # 检查是否有检测结果
         if results.boxes is None or len(results.boxes) == 0:
@@ -68,24 +68,26 @@ class Detect:
 
         # 生成唯一的ID
         group = LabelGroup()
+
         # 遍历所有检测框
+        idx = 0
         for id, (bbox, conf, type) in enumerate(zip(bboxes, confidences, types)):
-            logger.info(f"Detected: {id} {self.model.names[type]} Type={type}, Confidence={conf}, BBox={bbox}")
+            logger.info(f"Detected: {id} {self.model.names[type]} Type={type}, Confidence={conf:.2f}, BBox={bbox}")
             # 过滤低置信度的检测
             if conf < threshold:
                 continue
 
-            if type not in fetch_types:
+            if type not in fetch_types.keys():
                 continue
 
             # 获取边界框坐标 (xyxy格式: x1, y1, x2, y2)
             x1, y1, x2, y2 = bbox
 
             # 创建标签实例
-            instance = LabelInstance(id=id)
-            instance.type = int(type)
+            instance = LabelInstance(id=idx)
+            instance.type = fetch_types[type]
             instance.graphics = Graphics(type=GraphicsType.GT_RECTANGLE, points=[Point(x=x1, y=y1), Point(x=x2, y=y2)])
             group.labels.append(instance)
-            id += 1
+            idx += 1
 
         return group
