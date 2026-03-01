@@ -5,6 +5,7 @@ from project.manager import ProjectManagerDialog
 from canvas.canvas import Canvas
 
 from PyQt6.QtGui import QAction
+from PyQt6.QtCore import QTimer
 
 import qtawesome as qta
 
@@ -43,3 +44,4 @@ class AisLabel:
 
     def on_label_group_saved(self):
         self.provider.refresh_pictures_table()
+        QTimer.singleShot(1, self.provider._on_next_clicked)

@@ -123,6 +123,8 @@ class Provider(QObject):
             QTimer.singleShot(0, lambda: self.activate_dataitem.emit(list(self.filtered.values())[0]))
 
     def refresh_pictures_table(self):
+        save_selected_rows = set([index.row() for index in self.ui.pictures.selectionModel().selectedRows()])
+
         self._make_original()
         self._do_filter()
 
@@ -164,6 +166,11 @@ class Provider(QObject):
         self.ui.ratio.setText(f'({len(labeled) + len(ignored)}/{len(self.original)})')
 
         self._save_filter_config()
+
+        for row in save_selected_rows:
+            if row < self.model.rowCount():
+                self.ui.pictures.selectRow(row)
+                break
 
     def _init_images_ui(self):
         """初始化UI"""
@@ -306,6 +313,7 @@ class Provider(QObject):
         if not selected_rows:
             return
         key = list(self.filtered.keys())[selected_rows[0].row()]
+        print("Selected key:", key)
         self.activate_dataitem.emit(self.filtered[key])
 
     def _make_original(self):
@@ -459,6 +467,7 @@ class Provider(QObject):
             return
         first_selected_row = min(selected_rows)
         prev_row = max(0, first_selected_row - 1)
+        self.ui.pictures.clearSelection()
         self.ui.pictures.selectRow(prev_row)
 
     def _on_next_clicked(self):
@@ -467,4 +476,5 @@ class Provider(QObject):
             return
         last_selected_row = max(selected_rows)
         next_row = min(self.model.rowCount() - 1, last_selected_row + 1)
+        self.ui.pictures.clearSelection()
         self.ui.pictures.selectRow(next_row)

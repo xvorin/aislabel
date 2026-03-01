@@ -56,7 +56,7 @@ class LabelGroupTable(QObject):
         )
 
         headers = [
-            {'name': '标签编号', 'size': 60, 'mode': QHeaderView.ResizeMode.Fixed},
+            {'name': '序号', 'size': 30, 'mode': QHeaderView.ResizeMode.Fixed},
             {'name': '标签类型', 'size': 60, 'mode': QHeaderView.ResizeMode.Stretch},
             {'name': '几何类型', 'size': 60, 'mode': QHeaderView.ResizeMode.ResizeToContents},
             {'name': '隐藏', 'size': 35, 'mode': QHeaderView.ResizeMode.Fixed},
